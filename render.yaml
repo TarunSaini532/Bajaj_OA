@@ -1,7 +1,7 @@
 services:
   - type: web
     name: bfhl-backend
-    env: node
+    runtime: node
     plan: free
     rootDir: backend
     buildCommand: npm install
@@ -9,8 +9,7 @@ services:
 
   - type: web
     name: bfhl-frontend
-    env: static
-    plan: free
+    runtime: static
     rootDir: frontend
     buildCommand: ""
     staticPublishPath: .
