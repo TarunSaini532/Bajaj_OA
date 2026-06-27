@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hierarchy Resolver — BFHL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0e0f;
+    --surface: #15181a;
+    --surface-raised: #1c2023;
+    --line: #2a2f33;
+    --text: #e8e6e1;
+    --text-dim: #8b9197;
+    --accent: #5ee6c4;
+    --accent-dim: #3a8c79;
+    --warn: #e6a85e;
+    --error: #e6645e;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-attachment: fixed;
+    background-position: -1px -1px;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  header {
+    margin-bottom: 40px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 24px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+
+  h1 {
+    font-size: 32px;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+
+  .sub {
+    color: var(--text-dim);
+    font-size: 15px;
+    margin: 0;
+    max-width: 560px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .panel-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  textarea {
+    width: 100%;
+    min-height: 120px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 14px;
+    resize: vertical;
+    transition: border-color 0.15s ease;
+  }
+
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent-dim);
+  }
+
+  textarea::placeholder { color: #4a5158; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  button.run {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: var(--accent);
+    color: #0c0e0f;
+    border: none;
+    border-radius: 4px;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+  }
+
+  button.run:hover { background: #7af0d2; }
+  button.run:active { transform: scale(0.98); }
+  button.run:disabled { background: var(--line); color: var(--text-dim); cursor: not-allowed; }
+
+  .hint {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .hint button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  /* Error banner */
+  .error-banner {
+    display: none;
+    background: rgba(230, 100, 94, 0.08);
+    border: 1px solid rgba(230, 100, 94, 0.4);
+    border-radius: 4px;
+    padding: 16px 18px;
+    margin-bottom: 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: #f0a8a4;
+  }
+  .error-banner.show { display: block; }
+  .error-banner strong { color: var(--error); display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  /* Results */
+  #results { display: none; }
+  #results.show { display: block; }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 18px;
+  }
+
+  .stat-num {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 6px;
+  }
+
+  .stat.cycles .stat-num { color: var(--warn); }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 28px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .hierarchy-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+  }
+
+  .hierarchy-card.cycle {
+    border-color: rgba(230, 168, 94, 0.4);
+    background: rgba(230, 168, 94, 0.04);
+  }
+
+  .hcard-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .root-badge {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--accent);
+    background: rgba(94, 230, 196, 0.1);
+    border-radius: 4px;
+    padding: 2px 9px;
+  }
+
+  .cycle .root-badge { color: var(--warn); background: rgba(230, 168, 94, 0.12); }
+
+  .meta-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .cycle-flag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--warn);
+    letter-spacing: 0.04em;
+  }
+
+  .tree-view {
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--text);
+    padding-left: 4px;
+  }
+
+  .tree-node { position: relative; }
+  .tree-children { margin-left: 18px; padding-left: 12px; border-left: 1px dashed var(--line); }
+  .node-label { color: var(--text); }
+  .node-leaf-dot { color: var(--accent-dim); margin-right: 4px; }
+
+  .pill-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pill {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 5px 10px;
+    color: var(--text-dim);
+  }
+
+  .pill.invalid { color: #f0a8a4; border-color: rgba(230, 100, 94, 0.3); }
+  .pill.dup { color: #f0d8a4; border-color: rgba(230, 168, 94, 0.3); }
+
+  .empty-note {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  .identity-row {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+
+  .api-cfg {
+    margin-top: 18px;
+  }
+
+  .api-cfg summary {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+
+  .api-cfg input {
+    width: 100%;
+    margin-top: 8px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  @media (max-width: 640px) {
+    .summary-grid { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">// bfhl.hierarchy-resolver</p>
+    <h1>Hierarchy Resolver</h1>
+    <p class="sub">Feed it raw <code>Parent-&gt;Child</code> edges. It validates, dedupes, resolves multi-parent conflicts, builds trees, and flags cycles.</p>
+  </header>
+
+  <div class="panel">
+    <p class="panel-label">
+      <span>Input edges</span>
+      <span id="charCount" style="font-weight: 400;">0 entries</span>
+    </p>
+    <textarea id="edgeInput" placeholder="A->B&#10;A->C&#10;B->D&#10;C->E&#10;X->Y&#10;Y->Z&#10;Z->X
+
+One edge per line, or comma-separated — either works.">A->B, A->C, B->D, C->E, E->F, X->Y, Y->Z, Z->X, P->Q, Q->R, G->H, G->H, G->I, hello, 1->2, A-></textarea>
+    <div class="controls">
+      <button class="run" id="runBtn">Run /bfhl →</button>
+      <span class="hint">or <button id="loadExample">load spec example</button></span>
+    </div>
+    <details class="api-cfg" open>
+      <summary>API base URL — set this to your deployed backend</summary>
+      <input id="apiBase" type="text" value="" placeholder="https://bfhl-backend-xxxx.onrender.com" />
+    </details>
+  </div>
+
+  <div class="error-banner" id="errorBanner">
+    <strong>Request failed</strong>
+    <span id="errorText"></span>
+  </div>
+
+  <div id="results">
+    <div class="summary-grid">
+      <div class="stat">
+        <div class="stat-num" id="statTrees">—</div>
+        <div class="stat-label">total trees</div>
+      </div>
+      <div class="stat cycles">
+        <div class="stat-num" id="statCycles">—</div>
+        <div class="stat-label">total cycles</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="statLargest">—</div>
+        <div class="stat-label">largest tree root</div>
+      </div>
+    </div>
+
+    <div class="section-title">Hierarchies</div>
+    <div id="hierarchiesContainer"></div>
+
+    <div class="section-title">Invalid entries</div>
+    <div class="pill-list" id="invalidContainer"></div>
+
+    <div class="section-title">Duplicate edges</div>
+    <div class="pill-list" id="dupContainer"></div>
+
+    <div class="identity-row" id="identityRow"></div>
+  </div>
+</div>
+
+<script>
+  const runBtn = document.getElementById('runBtn');
+  const edgeInput = document.getElementById('edgeInput');
+  const apiBase = document.getElementById('apiBase');
+  const errorBanner = document.getElementById('errorBanner');
+  const errorText = document.getElementById('errorText');
+  const results = document.getElementById('results');
+  const charCount = document.getElementById('charCount');
+  const loadExample = document.getElementById('loadExample');
+
+  const SPEC_EXAMPLE = "A->B, A->C, B->D, C->E, E->F, X->Y, Y->Z, Z->X, P->Q, Q->R, G->H, G->H, G->I, hello, 1->2, A->";
+
+  // Restore a previously-used API base URL so it doesn't need retyping on
+  // every reload. Priority: ?api= query param > last saved value.
+  (function restoreApiBase() {
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get('api');
+    if (fromQuery) {
+      apiBase.value = fromQuery;
+      try { localStorage.setItem('bfhl_api_base', fromQuery); } catch (_) {}
+      return;
+    }
+    try {
+      const saved = localStorage.getItem('bfhl_api_base');
+      if (saved) apiBase.value = saved;
+    } catch (_) { /* localStorage unavailable - fall back to empty field */ }
+  })();
+
+  apiBase.addEventListener('change', () => {
+    try { localStorage.setItem('bfhl_api_base', apiBase.value.trim()); } catch (_) {}
+  });
+
+  function parseInput(raw) {
+    // Accept either newline- or comma-separated entries.
+    return raw
+      .split(/[\n,]/)
+      .map(s => s) // keep raw (including possible whitespace) - backend trims per spec
+      .filter(s => s.trim() !== '' || raw.includes(s)); // keep deliberate empty entries if user typed them between commas
+  }
+
+  function updateCount() {
+    const entries = edgeInput.value.split(/[\n,]/).filter(s => s.trim() !== '');
+    charCount.textContent = entries.length + (entries.length === 1 ? ' entry' : ' entries');
+  }
+  edgeInput.addEventListener('input', updateCount);
+  updateCount();
+
+  loadExample.addEventListener('click', () => {
+    edgeInput.value = SPEC_EXAMPLE;
+    updateCount();
+  });
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function renderTree(treeObj) {
+    const rootKey = Object.keys(treeObj)[0];
+    if (rootKey === undefined) return '';
+    return renderNode(rootKey, treeObj[rootKey]);
+  }
+
+  function renderNode(label, children) {
+    const childKeys = Object.keys(children || {});
+    let html = `<div class="tree-node">`;
+    html += childKeys.length === 0
+      ? `<span class="node-leaf-dot">●</span><span class="node-label">${escapeHtml(label)}</span>`
+      : `<span class="node-label">${escapeHtml(label)}</span>`;
+    if (childKeys.length > 0) {
+      html += `<div class="tree-children">`;
+      for (const child of childKeys) {
+        html += renderNode(child, children[child]);
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function renderResults(data) {
+    document.getElementById('statTrees').textContent = data.summary.total_trees;
+    document.getElementById('statCycles').textContent = data.summary.total_cycles;
+    document.getElementById('statLargest').textContent = data.summary.largest_tree_root || '—';
+
+    const hContainer = document.getElementById('hierarchiesContainer');
+    if (!data.hierarchies || data.hierarchies.length === 0) {
+      hContainer.innerHTML = '<p class="empty-note">No valid hierarchies found.</p>';
+    } else {
+      hContainer.innerHTML = data.hierarchies.map(h => {
+        const isCycle = !!h.has_cycle;
+        return `
+          <div class="hierarchy-card ${isCycle ? 'cycle' : ''}">
+            <div class="hcard-head">
+              <span class="root-badge">${escapeHtml(h.root)}</span>
+              ${isCycle
+                ? '<span class="cycle-flag">⟲ cycle detected</span>'
+                : `<span class="meta-tag">depth: ${h.depth}</span>`}
+            </div>
+            <div class="tree-view">
+              ${isCycle ? '<span class="empty-note">tree: {} — cyclic group, no fixed structure</span>' : renderTree(h.tree)}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    const invContainer = document.getElementById('invalidContainer');
+    invContainer.innerHTML = (data.invalid_entries && data.invalid_entries.length > 0)
+      ? data.invalid_entries.map(e => `<span class="pill invalid">${escapeHtml(JSON.stringify(e))}</span>`).join('')
+      : '<span class="empty-note">none</span>';
+
+    const dupContainer = document.getElementById('dupContainer');
+    dupContainer.innerHTML = (data.duplicate_edges && data.duplicate_edges.length > 0)
+      ? data.duplicate_edges.map(e => `<span class="pill dup">${escapeHtml(e)}</span>`).join('')
+      : '<span class="empty-note">none</span>';
+
+    document.getElementById('identityRow').textContent =
+      `${data.user_id} · ${data.email_id} · ${data.college_roll_number}`;
+
+    results.classList.add('show');
+  }
+
+  async function runRequest() {
+    errorBanner.classList.remove('show');
+    results.classList.remove('show');
+
+    const rawValue = edgeInput.value;
+    const entries = parseInput(rawValue);
+
+    const base = apiBase.value.trim().replace(/\/$/, '');
+    if (!base) {
+      errorText.textContent = 'Set an API base URL above before running.';
+      errorBanner.classList.add('show');
+      return;
+    }
+
+    runBtn.disabled = true;
+    runBtn.textContent = 'Running…';
+
+    try {
+      const res = await fetch(`${base}/bfhl`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: entries }),
+      });
+
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const errJson = await res.json();
+          if (errJson && errJson.error) detail += ` — ${errJson.error}`;
+        } catch (_) { /* ignore parse failure */ }
+        throw new Error(detail);
+      }
+
+      const data = await res.json();
+      renderResults(data);
+    } catch (err) {
+      errorText.textContent = (err.message || 'Could not reach the API. Check the URL and CORS settings.')
+        + ' If this is a Render free-tier service that has been idle, it may be cold-starting — try again in 30-60s.';
+      errorBanner.classList.add('show');
+    } finally {
+      runBtn.disabled = false;
+      runBtn.textContent = 'Run /bfhl →';
+    }
+  }
+
+  runBtn.addEventListener('click', runRequest);
+  edgeInput.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') runRequest();
+  });
+</script>
+
+</body>
+</html>
